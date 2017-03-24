@@ -1,0 +1,56 @@
+diff -urN ../nginx-1.11.11/src/http/ngx_http_upstream.c ./src/http/ngx_http_upstream.c
+--- ../nginx-1.11.11/src/http/ngx_http_upstream.c	2017-03-21 11:04:23.000000000 -0400
++++ ./src/http/ngx_http_upstream.c	2017-03-24 14:54:35.796674383 -0400
+@@ -35,8 +35,6 @@
+ static void ngx_http_upstream_wr_check_broken_connection(ngx_http_request_t *r);
+ static void ngx_http_upstream_check_broken_connection(ngx_http_request_t *r,
+     ngx_event_t *ev);
+-static void ngx_http_upstream_connect(ngx_http_request_t *r,
+-    ngx_http_upstream_t *u);
+ static ngx_int_t ngx_http_upstream_reinit(ngx_http_request_t *r,
+     ngx_http_upstream_t *u);
+ static void ngx_http_upstream_send_request(ngx_http_request_t *r,
+@@ -772,10 +770,9 @@
+     u->ssl_name = uscf->host;
+ #endif
+ 
+-    if (uscf->peer.init(r, uscf) != NGX_OK) {
+-        ngx_http_upstream_finalize_request(r, u,
+-                                           NGX_HTTP_INTERNAL_SERVER_ERROR);
+-        return;
++    switch(uscf->peer.init(r, uscf)) {
++        case NGX_OK:   ngx_http_upstream_connect(r, u);
++        case NGX_BUSY: return;
+     }
+ 
+     u->peer.start_time = ngx_current_msec;
+@@ -786,7 +783,7 @@
+         u->peer.tries = u->conf->next_upstream_tries;
+     }
+ 
+-    ngx_http_upstream_connect(r, u);
++    ngx_http_upstream_finalize_request(r, u, NGX_HTTP_INTERNAL_SERVER_ERROR);
+ }
+ 
+ 
+@@ -1451,7 +1448,7 @@
+ }
+ 
+ 
+-static void
++void
+ ngx_http_upstream_connect(ngx_http_request_t *r, ngx_http_upstream_t *u)
+ {
+     ngx_int_t          rc;
+diff -urN ../nginx-1.11.11/src/http/ngx_http_upstream.h ./src/http/ngx_http_upstream.h
+--- ../nginx-1.11.11/src/http/ngx_http_upstream.h	2017-03-21 11:04:23.000000000 -0400
++++ ./src/http/ngx_http_upstream.h	2017-03-24 14:54:35.796674383 -0400
+@@ -405,6 +405,8 @@
+ 
+ ngx_int_t ngx_http_upstream_create(ngx_http_request_t *r);
+ void ngx_http_upstream_init(ngx_http_request_t *r);
++#define NGX_HTTP_UPSTREAM_INIT_BUSY_PATCH_VERSION  1
++void ngx_http_upstream_connect(ngx_http_request_t *r, ngx_http_upstream_t *u);
+ ngx_http_upstream_srv_conf_t *ngx_http_upstream_add(ngx_conf_t *cf,
+     ngx_url_t *u, ngx_uint_t flags);
+ char *ngx_http_upstream_bind_set_slot(ngx_conf_t *cf, ngx_command_t *cmd,
